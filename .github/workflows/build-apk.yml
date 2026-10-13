@@ -1,59 +1,129 @@
 name: ClubFa Ultimate - Gerar APK
+
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
-
-permissions:
-  contents: read
+    branches:
+      - main
+    paths:
+      - "*.zip"
+      - ".github/workflows/build-apk.yml"
 
 jobs:
   build:
+    name: Compilar ClubFa Ultimate
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+
+    permissions:
+      contents: read
+
     steps:
-      - name: Baixar arquivos do GitHub
+      - name: Baixar repositorio
         uses: actions/checkout@v4
-      - name: Localizar projeto (pasta ou ZIP)
-        shell: bash
-        run: |
-          if [ -f ClubFa-Ultimate-520-Local.zip ]; then
-            mkdir -p "$RUNNER_TEMP/clubfa"
-            unzip -q ClubFa-Ultimate-520-Local.zip -d "$RUNNER_TEMP/clubfa"
-            test -f "$RUNNER_TEMP/clubfa/ClubFa-Android/settings.gradle.kts"
-            echo "PROJECT_DIR=$RUNNER_TEMP/clubfa/ClubFa-Android" >> "$GITHUB_ENV"
-          elif [ -f settings.gradle.kts ]; then
-            echo "PROJECT_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
-          else
-            echo 'Não encontrei o projeto: extraia na raiz ou envie ClubFa-Ultimate-520-Local.zip' >&2
-            exit 1
-          fi
+
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
+
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
-      - name: Instalar Android 35
+
+      - name: Aceitar licencas do Android
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+
+      - name: Encontrar e extrair projeto
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Preparar Gradle
+          set -e
+
+          ZIP=$(find . -maxdepth 2 -type f \
+            -iname "ClubFa*.zip" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "ERRO: ZIP do ClubFa nao encontrado!"
+            exit 1
+          fi
+
+          echo "Arquivo encontrado: $ZIP"
+
+          mkdir -p extracted
+          unzip -q "$ZIP" -d extracted
+
+          echo "Arquivos extraidos:"
+          find extracted -maxdepth 3 -type f | head -40
+
+      - name: Localizar projeto Android
+        shell: bash
+        run: |
+          set -e
+
+          BUILD_FILE=$(find extracted \
+            -type f \
+            \( -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \) \
+            | head -n 1)
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "ERRO: Projeto Gradle nao encontrado!"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          echo "Projeto localizado em: $PROJECT_DIR"
+
+      - name: Corrigir fillViewport
+        shell: bash
+        run: |
+          find "$PROJECT_DIR" \
+            -type f \
+            -name "*.kt" \
+            -exec sed -i \
+            's/\bfillViewport[[:space:]]*=/isFillViewport =/g' {} +
+
+      - name: Instalar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: "8.7"
+
       - name: Compilar APK
-        run: gradle --no-daemon --stacktrace -p "$PROJECT_DIR" :app:assembleDebug
-      - name: Preparar arquivo APK
+        shell: bash
         run: |
-          mkdir -p release
-          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" release/ClubFa-Ultimate.apk
+          set -e
+          cd "$PROJECT_DIR"
+
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: Localizar APK
+        shell: bash
+        run: |
+          mkdir -p apk-final
+
+          find "$PROJECT_DIR" \
+            -type f \
+            -name "*.apk" \
+            -exec cp {} apk-final/ \;
+
+          if ! ls apk-final/*.apk >/dev/null 2>&1; then
+            echo "ERRO: Nenhum APK foi gerado!"
+            exit 1
+          fi
+
+          ls -lh apk-final/
+
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: ClubFa-Ultimate-APK
-          path: release/ClubFa-Ultimate.apk
+          path: apk-final/*.apk
           if-no-files-found: error
-          retention-days: 14
