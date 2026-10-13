@@ -1,12 +1,12 @@
 
-name: Nosso Canto - APK com Logo e Ajuste S23
+name: Nosso Canto - APK Navegacao Corrigida
 
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
     paths:
-      - 'NossoCanto-Android-Logo-S23.zip'
+      - 'NossoCanto-Android-Navegacao-Corrigida.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   build:
-    name: Gerar APK Nosso Canto
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -50,25 +49,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          test -f NossoCanto-Android-Logo-S23.zip
+          test -f NossoCanto-Android-Navegacao-Corrigida.zip
 
           mkdir -p extracted
 
-          unzip -q NossoCanto-Android-Logo-S23.zip \
+          unzip -q NossoCanto-Android-Navegacao-Corrigida.zip \
             -d extracted
 
           test -f \
-            extracted/NossoCanto-Android-Logo-S23/settings.gradle.kts
+            extracted/NossoCanto-Android-Navegacao-Corrigida/settings.gradle.kts
 
       - name: Compilar APK
         run: |
           gradle --no-daemon \
-            -p extracted/NossoCanto-Android-Logo-S23 \
+            -p extracted/NossoCanto-Android-Navegacao-Corrigida \
             :app:assembleDebug
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nosso-Canto-APK-Logo-S23
-          path: extracted/NossoCanto-Android-Logo-S23/app/build/outputs/apk/debug/app-debug.apk
+          name: Nosso-Canto-APK-Corrigido
+          path: extracted/NossoCanto-Android-Navegacao-Corrigida/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
