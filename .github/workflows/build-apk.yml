@@ -9,13 +9,13 @@ on:
       - "*.zip"
       - ".github/workflows/build-apk.yml"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Compilar ClubFa Ultimate
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
 
     steps:
       - name: Baixar repositorio
@@ -29,97 +29,82 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ""
 
-      - name: Aceitar licencas do Android
+      - name: Instalar componentes Android
+        shell: bash
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
+          set -e
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
-      - name: Encontrar e extrair projeto
+      - name: Extrair projeto ClubFa
         shell: bash
         run: |
           set -e
 
           ZIP=$(find . -maxdepth 2 -type f \
-            -iname "ClubFa*.zip" | head -n 1)
+            -iname "ClubFa*.zip" | sort | head -n 1)
 
           if [ -z "$ZIP" ]; then
-            echo "ERRO: ZIP do ClubFa nao encontrado!"
+            echo "ERRO: ZIP do ClubFa nao encontrado"
             exit 1
           fi
 
-          echo "Arquivo encontrado: $ZIP"
+          echo "ZIP encontrado: $ZIP"
 
           mkdir -p extracted
           unzip -q "$ZIP" -d extracted
 
-          echo "Arquivos extraidos:"
-          find extracted -maxdepth 3 -type f | head -40
-
-      - name: Localizar projeto Android
-        shell: bash
-        run: |
-          set -e
-
-          BUILD_FILE=$(find extracted \
-            -type f \
+          SETTINGS=$(find extracted -type f \
             \( -name "settings.gradle" \
             -o -name "settings.gradle.kts" \) \
             | head -n 1)
 
-          if [ -z "$BUILD_FILE" ]; then
-            echo "ERRO: Projeto Gradle nao encontrado!"
+          if [ -z "$SETTINGS" ]; then
+            echo "ERRO: Projeto Android nao encontrado"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$BUILD_FILE")
-
+          PROJECT_DIR=$(dirname "$SETTINGS")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Projeto localizado em: $PROJECT_DIR"
-
-      - name: Corrigir fillViewport
+      - name: Corrigir propriedade fillViewport
         shell: bash
         run: |
-          find "$PROJECT_DIR" \
-            -type f \
-            -name "*.kt" \
+          find "$PROJECT_DIR" -type f -name "*.kt" \
             -exec sed -i \
             's/\bfillViewport[[:space:]]*=/isFillViewport =/g' {} +
 
-      - name: Instalar Gradle
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.7"
 
-      - name: Compilar APK
+      - name: Gerar APK
         shell: bash
         run: |
           set -e
           cd "$PROJECT_DIR"
 
-          if [ -f "./gradlew" ]; then
-            chmod +x ./gradlew
+          if [ -f gradlew ]; then
+            chmod +x gradlew
             ./gradlew assembleDebug --stacktrace
           else
             gradle assembleDebug --stacktrace
           fi
 
-      - name: Localizar APK
+      - name: Preparar APK
         shell: bash
         run: |
           mkdir -p apk-final
 
-          find "$PROJECT_DIR" \
-            -type f \
+          find "$PROJECT_DIR" -type f \
             -name "*.apk" \
             -exec cp {} apk-final/ \;
 
-          if ! ls apk-final/*.apk >/dev/null 2>&1; then
-            echo "ERRO: Nenhum APK foi gerado!"
-            exit 1
-          fi
-
-          ls -lh apk-final/
+          test -n "$(find apk-final -name '*.apk' -print -quit)"
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
