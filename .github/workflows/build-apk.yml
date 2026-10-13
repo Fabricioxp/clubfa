@@ -1,12 +1,12 @@
 
-name: Nosso Canto - APK Navegacao Corrigida
+name: Nosso Canto - Links e Logo Dourada
 
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
     paths:
-      - 'NossoCanto-Android-Navegacao-Corrigida.zip'
+      - 'NossoCanto-Android-Links-Logo-Dourada.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
       - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -29,8 +29,6 @@ jobs:
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: ''
 
       - name: Instalar componentes Android
         run: |
@@ -45,29 +43,20 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extrair projeto
-        shell: bash
         run: |
           set -euo pipefail
-
-          test -f NossoCanto-Android-Navegacao-Corrigida.zip
-
-          mkdir -p extracted
-
-          unzip -q NossoCanto-Android-Navegacao-Corrigida.zip \
-            -d extracted
-
-          test -f \
-            extracted/NossoCanto-Android-Navegacao-Corrigida/settings.gradle.kts
+          unzip -q NossoCanto-Android-Links-Logo-Dourada.zip -d extracted
+          test -f extracted/NossoCanto-Android-Links-Logo-Dourada/settings.gradle.kts
 
       - name: Compilar APK
         run: |
           gradle --no-daemon \
-            -p extracted/NossoCanto-Android-Navegacao-Corrigida \
+            -p extracted/NossoCanto-Android-Links-Logo-Dourada \
             :app:assembleDebug
 
-      - name: Disponibilizar APK
+      - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nosso-Canto-APK-Corrigido
-          path: extracted/NossoCanto-Android-Navegacao-Corrigida/app/build/outputs/apk/debug/app-debug.apk
+          name: Nosso-Canto-APK-Dourado
+          path: extracted/NossoCanto-Android-Links-Logo-Dourada/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
