@@ -1,12 +1,12 @@
 
-name: Nosso Canto - Gerar APK
+name: Nosso Canto - APK com Logo e Ajuste S23
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
-      - 'NossoCanto-Android.zip'
+      - 'NossoCanto-Android-Logo-S23.zip'
       - '.github/workflows/build-apk.yml'
 
 permissions:
@@ -14,13 +14,15 @@ permissions:
 
 jobs:
   build:
+    name: Gerar APK Nosso Canto
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
       - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java
+      - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -38,25 +40,35 @@ jobs:
             'build-tools;35.0.0' \
             'platform-tools'
 
-      - name: Extrair aplicativo
-        run: |
-          unzip -q NossoCanto-Android.zip -d extracted
-          test -f extracted/NossoCanto-Android/settings.gradle.kts
-
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Gerar APK
+      - name: Extrair projeto
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f NossoCanto-Android-Logo-S23.zip
+
+          mkdir -p extracted
+
+          unzip -q NossoCanto-Android-Logo-S23.zip \
+            -d extracted
+
+          test -f \
+            extracted/NossoCanto-Android-Logo-S23/settings.gradle.kts
+
+      - name: Compilar APK
         run: |
           gradle --no-daemon \
-            -p extracted/NossoCanto-Android \
+            -p extracted/NossoCanto-Android-Logo-S23 \
             :app:assembleDebug
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nosso-Canto-APK
-          path: extracted/NossoCanto-Android/app/build/outputs/apk/debug/app-debug.apk
+          name: Nosso-Canto-APK-Logo-S23
+          path: extracted/NossoCanto-Android-Logo-S23/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
