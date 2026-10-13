@@ -1,53 +1,59 @@
-name: Gerar APK ClubFa
-
+name: ClubFa Ultimate - Gerar APK
 on:
   workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
 
 jobs:
-  apk:
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
-      - name: Baixar arquivos
+      - name: Baixar arquivos do GitHub
         uses: actions/checkout@v4
-
-      - name: Configurar Java
+      - name: Localizar projeto (pasta ou ZIP)
+        shell: bash
+        run: |
+          if [ -f ClubFa-Ultimate-520-Local.zip ]; then
+            mkdir -p "$RUNNER_TEMP/clubfa"
+            unzip -q ClubFa-Ultimate-520-Local.zip -d "$RUNNER_TEMP/clubfa"
+            test -f "$RUNNER_TEMP/clubfa/ClubFa-Android/settings.gradle.kts"
+            echo "PROJECT_DIR=$RUNNER_TEMP/clubfa/ClubFa-Android" >> "$GITHUB_ENV"
+          elif [ -f settings.gradle.kts ]; then
+            echo "PROJECT_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          else
+            echo 'Não encontrei o projeto: extraia na raiz ou envie ClubFa-Ultimate-520-Local.zip' >&2
+            exit 1
+          fi
+      - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Instalar componentes Android
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Instalar Android 35
         shell: bash
         run: |
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Configurar Gradle
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Preparar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Extrair ClubFa
-        run: unzip -q ClubFa-GitHub-Android.zip
-
-      - name: Corrigir propriedade Kotlin
-        shell: bash
-        run: |
-          FILE="ClubFa-Android/app/src/main/java/com/clubfa/app/MainActivity.kt"
-          test -f "$FILE"
-          sed -i 's/; fillViewport=true/; isFillViewport=true/g' "$FILE"
-          grep -n 'isFillViewport=true' "$FILE"
-
       - name: Compilar APK
-        working-directory: ClubFa-Android
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
-
+        run: gradle --no-daemon --stacktrace -p "$PROJECT_DIR" :app:assembleDebug
+      - name: Preparar arquivo APK
+        run: |
+          mkdir -p release
+          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" release/ClubFa-Ultimate.apk
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClubFa-APK
-          path: ClubFa-Android/app/build/outputs/apk/debug/app-debug.apk
+          name: ClubFa-Ultimate-APK
+          path: release/ClubFa-Ultimate.apk
           if-no-files-found: error
           retention-days: 14
