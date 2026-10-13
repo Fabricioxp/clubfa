@@ -6,10 +6,8 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-24.04
-
     permissions:
       contents: read
-
     steps:
       - name: Baixar arquivos
         uses: actions/checkout@v4
@@ -20,20 +18,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configurar Android SDK
-        shell: bash
-        run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "Android SDK: $ANDROID_SDK_ROOT"
-          ls "$ANDROID_SDK_ROOT/platforms"
-
       - name: Instalar componentes Android
         shell: bash
         run: |
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -41,13 +30,19 @@ jobs:
           gradle-version: '8.9'
 
       - name: Extrair ClubFa
+        run: unzip -q ClubFa-GitHub-Android.zip
+
+      - name: Corrigir propriedade Kotlin
+        shell: bash
         run: |
-          unzip -q ClubFa-GitHub-Android.zip
+          FILE="ClubFa-Android/app/src/main/java/com/clubfa/app/MainActivity.kt"
+          test -f "$FILE"
+          sed -i 's/; fillViewport=true/; isFillViewport=true/g' "$FILE"
+          grep -n 'isFillViewport=true' "$FILE"
 
       - name: Compilar APK
         working-directory: ClubFa-Android
-        run: |
-          gradle --no-daemon --stacktrace :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
